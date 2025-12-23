@@ -134,6 +134,234 @@ flowchart TD
    - O caminho completo será: `rest/v1/[nome_da_tabela]`
    - Exemplo: Se a tabela é `fato_lancamentos`, o caminho será `rest/v1/fato_lancamentos`
 
+### 1.4.1 Identificar Schema da Tabela
+
+```mermaid
+flowchart TD
+    A[Lista de Tabelas] --> B{Tabela tem Schema?}
+    B -->|Sim| C[Schema Visível no Nome]
+    B -->|Não| D[Schema Padrão: public]
+    
+    C --> E[Exemplo: dw.dim_calendario]
+    C --> F[Schema: dw, Tabela: dim_calendario]
+    
+    D --> G[Exemplo: fato_lancamentos]
+    D --> H[Schema: public, Tabela: fato_lancamentos]
+    
+    E --> I[Anotar Schema e Tabela]
+    F --> I
+    G --> J[Anotar Apenas Tabela]
+    H --> J
+    
+    style A fill:#e1f5ff
+    style B fill:#fff9c4
+    style I fill:#c8e6c9
+    style J fill:#c8e6c9
+```
+
+**Informações Importantes:**
+
+1. **Schemas no PostgreSQL/Supabase:**
+   - Um **schema** é um namespace que organiza objetos do banco de dados (tabelas, views, funções, etc.)
+   - O schema padrão é `public` - quando não especificado, assume-se que a tabela está em `public`
+   - Tabelas podem estar em schemas diferentes, como `dw`, `analytics`, `staging`, etc.
+
+2. **Como Identificar o Schema:**
+   - No **Table Editor** do Supabase, o nome completo da tabela pode aparecer como `schema.tabela`
+   - Exemplo: `dw.dim_calendario` significa:
+     - **Schema:** `dw`
+     - **Tabela:** `dim_calendario`
+   - Se você ver apenas `fato_lancamentos` (sem schema), significa que está no schema `public`
+
+3. **Exemplos de Nomes de Tabelas:**
+   - `fato_lancamentos` → Schema: `public`, Tabela: `fato_lancamentos`
+   - `dw.dim_calendario` → Schema: `dw`, Tabela: `dim_calendario`
+   - `analytics.vendas` → Schema: `analytics`, Tabela: `vendas`
+   - `public.contas` → Schema: `public`, Tabela: `contas` (explícito)
+
+4. **Quando Especificar o Schema:**
+   - Se a tabela está no schema `public` (padrão), você pode omitir o schema
+   - Se a tabela está em outro schema (como `dw`, `analytics`, etc.), você **DEVE** incluir o schema no `RPath`
+   - Formato no `RPath`: `rest/v1/[schema].[tabela]`
+   - Exemplo: Para `dw.dim_calendario`, use `rest/v1/dw.dim_calendario`
+
+**⚠️ IMPORTANTE:**
+- Se você tentar acessar uma tabela de schema diferente sem especificar o schema, receberá erro "404 Not Found"
+- Sempre verifique o schema da tabela antes de configurar o `RPath` no código M
+- **CRÍTICO:** Antes de usar tabelas de schemas diferentes, você DEVE expor o schema no Supabase (veja seção 1.4.2)
+- Para mais informações sobre como configurar o código M com schemas, consulte a seção **2.3 Colar e Configurar o Código M**
+
+### 1.4.2 Expor Schema no Supabase (OBRIGATÓRIO para Schemas Diferentes)
+
+```mermaid
+flowchart TD
+    A[Tabela em Schema Diferente] --> B{Schema Exposto?}
+    B -->|Não| C[Erro 404 ou 406]
+    B -->|Sim| D[Continuar Configuração]
+    
+    C --> E[Expor Schema no Dashboard]
+    E --> F[Settings > API]
+    F --> G[Exposed Schemas]
+    G --> H[Adicionar Schema]
+    H --> I[Salvar]
+    I --> D
+    
+    style A fill:#e1f5ff
+    style B fill:#fff9c4
+    style C fill:#ffccbc
+    style D fill:#c8e6c9
+    style E fill:#ffccbc
+```
+
+**⚠️ PASSO CRÍTICO - NÃO PULE ESTE PASSO:**
+
+Se sua tabela está em um schema diferente de `public` (como `dw`, `analytics`, `staging`, etc.), você **DEVE** expor o schema no painel do Supabase antes de tentar acessá-lo via API REST.
+
+**Passos para Expor o Schema:**
+
+1. **Acesse o Dashboard do Supabase:**
+   - Faça login em [Supabase Dashboard](https://app.supabase.com)
+   - Selecione o projeto onde está a tabela
+
+2. **Navegue até as Configurações da API:**
+   - No menu lateral esquerdo, clique em **"Settings"** (Configurações) - ícone de engrenagem ⚙️
+   - Clique na aba **"API"**
+
+3. **Localize a Seção "Exposed Schemas":**
+   - Role a página até encontrar a seção **"API Settings"** ou **"Exposed Schemas"**
+   - Você verá uma lista de schemas expostos
+   - Por padrão, apenas `public` está exposto
+
+4. **Adicione o Schema Desejado:**
+   - Clique para editar a lista de schemas expostos
+   - Adicione o nome do schema (ex: `dw`, `analytics`, `staging`)
+   - A lista ficará algo como: `public, dw` (separados por vírgula)
+   - ⚠️ **Importante:** Use apenas o nome do schema, sem aspas ou espaços extras
+
+5. **Salve as Alterações:**
+   - Clique em **"Save"** (Salvar) para aplicar as mudanças
+   - Aguarde alguns segundos para que as alterações sejam aplicadas
+
+**Exemplo Visual:**
+```
+Exposed Schemas: [public, dw]
+                 ↑        ↑
+              padrão   adicionado
+```
+
+**⚠️ IMPORTANTE:**
+- Sem expor o schema, você receberá erros **404 (Not Found)** ou **406 (Not Acceptable)**
+- Este passo é **OBRIGATÓRIO** antes de tentar acessar tabelas em schemas diferentes
+- Você precisa ter permissões de administrador no projeto para alterar essas configurações
+- Após expor o schema, pode levar alguns segundos para as mudanças entrarem em vigor
+
+**Verificação:**
+Após expor o schema, você pode testar se está funcionando acessando a URL diretamente no navegador:
+```
+https://[seu-projeto].supabase.co/rest/v1/[tabela]?apikey=[sua-key]
+```
+Com o header `Accept-Profile: [schema]` (use uma extensão do navegador como ModHeader para adicionar headers)
+
+### 1.4.3 Conceder Permissões SQL ao Schema (OBRIGATÓRIO)
+
+```mermaid
+flowchart TD
+    A[Schema Exposto] --> B{Permissões Concedidas?}
+    B -->|Não| C[Erro de Acesso]
+    B -->|Sim| D[Acesso Permitido]
+    
+    C --> E[Executar Comandos SQL]
+    E --> F[GRANT USAGE ON SCHEMA]
+    F --> G[GRANT SELECT ON ALL TABLES]
+    G --> H[Permissões Concedidas]
+    H --> D
+    
+    style A fill:#e1f5ff
+    style B fill:#fff9c4
+    style C fill:#ffccbc
+    style D fill:#c8e6c9
+    style E fill:#ffccbc
+```
+
+**⚠️ PASSO CRÍTICO - CONCEDER PERMISSÕES:**
+
+Após expor o schema, você **DEVE** conceder permissões SQL para que os papéis `anon` e `authenticated` possam acessar as tabelas do schema via API REST.
+
+**Passos para Conceder Permissões:**
+
+1. **Acesse o SQL Editor do Supabase:**
+   - No Dashboard do Supabase, clique em **"SQL Editor"** no menu lateral
+   - Ou acesse diretamente: [SQL Editor](https://app.supabase.com/project/[seu-projeto]/sql)
+
+2. **Execute os Comandos SQL:**
+
+   **Opção A: Conceder Permissões para Todo o Schema (Recomendado)**
+   
+   Use este comando para conceder acesso a **todas as tabelas** do schema de uma vez:
+   
+   ```sql
+   -- Concede permissão de uso do schema
+   GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+   
+   -- Concede permissão de SELECT em todas as tabelas do schema
+   GRANT SELECT ON ALL TABLES IN SCHEMA dw TO anon, authenticated;
+   
+   -- Concede permissão de SELECT em tabelas futuras (opcional, mas recomendado)
+   ALTER DEFAULT PRIVILEGES IN SCHEMA dw 
+   GRANT SELECT ON TABLES TO anon, authenticated;
+   ```
+   
+   **Substitua `dw` pelo nome do seu schema** (ex: `analytics`, `staging`, etc.)
+   
+   **Opção B: Conceder Permissões para uma Tabela Específica**
+   
+   Se você quiser conceder permissões apenas para uma tabela específica:
+   
+   ```sql
+   -- Concede permissão de uso do schema
+   GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+   
+   -- Concede permissão de SELECT apenas nesta tabela
+   GRANT SELECT ON dw.dim_calendario TO anon, authenticated;
+   ```
+   
+   **Substitua `dw.dim_calendario` pelo schema e nome da sua tabela**
+
+3. **Execute os Comandos:**
+   - Cole os comandos SQL no editor
+   - Clique em **"Run"** (Executar) ou pressione `Ctrl+Enter`
+   - Aguarde a confirmação de sucesso
+
+4. **Verifique se Funcionou:**
+   - Você deve ver uma mensagem de sucesso
+   - Tente acessar a tabela via API REST novamente
+   - Se ainda houver erro, verifique se executou todos os comandos corretamente
+
+**Explicação dos Comandos:**
+
+- `GRANT USAGE ON SCHEMA`: Permite que os papéis usem o schema (necessário para acessar objetos dentro dele)
+- `GRANT SELECT ON ALL TABLES IN SCHEMA`: Concede permissão de leitura em todas as tabelas existentes do schema
+- `ALTER DEFAULT PRIVILEGES`: Garante que tabelas criadas no futuro também terão essas permissões (opcional, mas recomendado)
+
+**⚠️ IMPORTANTE:**
+- Sem essas permissões, você receberá erros de acesso mesmo após expor o schema
+- Use a **Opção A** se você quer acesso a todas as tabelas do schema
+- Use a **Opção B** se você quer acesso apenas a tabelas específicas
+- Essas permissões são necessárias para que a API REST funcione corretamente
+- Você precisa ter permissões de administrador no projeto para executar esses comandos
+
+**Exemplo Completo para Schema `dw`:**
+
+```sql
+-- Concede permissões para todo o schema dw
+GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA dw TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA dw 
+GRANT SELECT ON TABLES TO anon, authenticated;
+```
+
+Após executar esses comandos, todas as tabelas do schema `dw` estarão acessíveis via API REST usando as chaves `anon` ou `authenticated`.
+
 ### 1.5 Entender Limites de PageSize
 
 ```mermaid
@@ -266,7 +494,13 @@ flowchart TD
    RPath = "rest/v1/sua_tabela",
    ```
    - Substitua `sua_tabela` pelo nome da tabela que você anotou no Passo 1.4
-   - Exemplo: `RPath = "rest/v1/fato_lancamentos",`
+   - **Para tabelas no schema `public` (padrão):**
+     - Exemplo: `RPath = "rest/v1/fato_lancamentos",`
+   - **Para tabelas em schemas diferentes:**
+     - Inclua o schema no formato `[schema].[tabela]`
+     - Exemplo: Para `dw.dim_calendario`, use `RPath = "rest/v1/dw.dim_calendario",`
+     - ⚠️ **IMPORTANTE:** Se a tabela está em schema diferente de `public`, você DEVE incluir o schema no `RPath`
+   - Para mais informações sobre schemas, consulte a seção **1.4.1 Identificar Schema da Tabela**
 
    **c) ApiKey:**
    ```m
@@ -752,6 +986,12 @@ Use este checklist para garantir que todos os passos foram seguidos:
 - [ ] API Key copiada (`anon` ou `service_role`)
 - [ ] Table Editor acessado
 - [ ] Nome da tabela anotado
+- [ ] Schema da tabela identificado (se diferente de `public`)
+- [ ] **Se schema diferente de `public`:** Schema exposto em Settings > API > Exposed Schemas ⚠️ OBRIGATÓRIO
+- [ ] **Se schema diferente de `public`:** Permissões SQL concedidas no SQL Editor ⚠️ OBRIGATÓRIO
+  - [ ] `GRANT USAGE ON SCHEMA` executado
+  - [ ] `GRANT SELECT ON ALL TABLES IN SCHEMA` executado (ou para tabela específica)
+- [ ] RPath configurado corretamente (incluindo schema se necessário ou usando header Accept-Profile)
 
 ### Configuração no Power BI
 - [ ] Power BI Desktop aberto
@@ -759,7 +999,9 @@ Use este checklist para garantir que todos os passos foram seguidos:
 - [ ] Editor Avançado aberto
 - [ ] Código M colado
 - [ ] `BaseUrl` configurado corretamente
-- [ ] `RPath` configurado (`rest/v1/[tabela]`)
+- [ ] `RPath` configurado corretamente:
+  - Para schema `public`: `rest/v1/[tabela]`
+  - Para outros schemas: `rest/v1/[schema].[tabela]`
 - [ ] `ApiKey` configurado
 - [ ] `PageSize` configurado (padrão: 1000)
 - [ ] Credenciais configuradas (Anônimo)
@@ -809,13 +1051,85 @@ Use este checklist para garantir que todos os passos foram seguidos:
 
 ### Erro: "404 Not Found" ou "Tabela não encontrada"
 
-**Soluções:**
-1. Verifique se o `RPath` está correto:
-   - Formato: `rest/v1/[nome_da_tabela]`
+**Soluções (em ordem de prioridade):**
+
+1. **⚠️ PRIMEIRO: Verifique se o schema foi exposto no Supabase:**
+   - Se a tabela está em schema diferente de `public`, você **DEVE** expor o schema primeiro
+   - Acesse: **Settings** > **API** > **Exposed Schemas**
+   - Adicione o schema à lista (ex: `dw`, `analytics`, etc.)
+   - Clique em **Save**
+   - ⚠️ **Este é o passo mais comum que causa erro 404!**
+   - Para instruções detalhadas, consulte a seção **1.4.2 Expor Schema no Supabase**
+
+2. Verifique se o `RPath` está correto:
+   - **Para tabelas no schema `public` (padrão):** Formato: `rest/v1/[nome_da_tabela]`
+   - **Para tabelas em schemas diferentes:** Use uma das abordagens:
+     - Abordagem 1: Formato `rest/v1/[schema].[tabela]` (ex: `rest/v1/dw.dim_calendario`)
+     - Abordagem 2: Formato `rest/v1/[tabela]` + header `Accept-Profile: [schema]`
    - Sem barra inicial
    - Nome da tabela exato (case-sensitive)
-2. Verifique se a tabela existe no Supabase
-3. Verifique se a tabela está no schema `public` (padrão)
+   - Schema e tabela são case-sensitive
+
+3. Verifique se a tabela existe no Supabase:
+   - Confirme no Table Editor que a tabela existe
+   - Verifique o nome exato da tabela (case-sensitive)
+
+4. **Verifique se as permissões SQL foram concedidas:**
+   - Execute no SQL Editor do Supabase para conceder permissões ao schema inteiro:
+     ```sql
+     GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+     GRANT SELECT ON ALL TABLES IN SCHEMA dw TO anon, authenticated;
+     ALTER DEFAULT PRIVILEGES IN SCHEMA dw 
+     GRANT SELECT ON TABLES TO anon, authenticated;
+     ```
+   - Ou para uma tabela específica:
+     ```sql
+     GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+     GRANT SELECT ON dw.dim_calendario TO anon, authenticated;
+     ```
+   - Substitua `dw` pelo nome do seu schema
+   - Para instruções detalhadas, consulte a seção **1.4.3 Conceder Permissões SQL ao Schema**
+
+5. Para mais informações sobre schemas, consulte:
+   - Seção **1.4.1 Identificar Schema da Tabela**
+   - Seção **1.4.2 Expor Schema no Supabase**
+   - Seção **🎯 Personalizações Avançadas > Acessar Tabelas de Schemas Diferentes**
+
+### Erro: "406 Not Acceptable" ao acessar tabela em schema diferente
+
+**Soluções:**
+
+1. **⚠️ PRIMEIRO: Verifique se o schema foi exposto no Supabase:**
+   - O erro 406 geralmente indica que o schema não está exposto
+   - Acesse: **Settings** > **API** > **Exposed Schemas**
+   - Adicione o schema à lista e salve
+   - Aguarde alguns segundos para as mudanças entrarem em vigor
+   - Para instruções detalhadas, consulte a seção **1.4.2 Expor Schema no Supabase**
+
+2. **Verifique se as permissões SQL foram concedidas:**
+   - O erro 406 também pode ocorrer se as permissões SQL não foram concedidas
+   - Execute no SQL Editor do Supabase:
+     ```sql
+     GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+     GRANT SELECT ON ALL TABLES IN SCHEMA dw TO anon, authenticated;
+     ```
+   - Para instruções detalhadas, consulte a seção **1.4.3 Conceder Permissões SQL ao Schema**
+
+3. Verifique o formato do header `Accept-Profile`:
+   - Se estiver usando a Abordagem 2 (header), certifique-se de que o header está correto:
+     ```m
+     #"Accept-Profile" = "dw"  // Apenas o nome do schema, sem aspas extras
+     ```
+
+4. Verifique se está usando a abordagem correta:
+   - Tente a Abordagem 1 primeiro (schema no RPath): `rest/v1/dw.dim_calendario`
+   - Se não funcionar, tente a Abordagem 2 (header Accept-Profile)
+
+5. Teste diretamente no navegador:
+   - Use uma extensão como ModHeader para adicionar o header `Accept-Profile: dw`
+   - Acesse: `https://[seu-projeto].supabase.co/rest/v1/dim_calendario?apikey=[sua-key]`
+   - Se funcionar no navegador, o problema está no código M
+   - Se não funcionar, o problema está na configuração do Supabase
 
 ### Erro: "Dados não carregados" ou "Tabela vazia"
 
@@ -940,6 +1254,446 @@ Para tornar a consulta mais flexível, você pode criar parâmetros:
    RPath = "rest/v1/" & TabelaParameter,
    ApiKey = ApiKeyParameter,
    ```
+
+### Criar Estrutura Reutilizável com Parâmetros e Funções
+
+Esta é uma abordagem avançada que permite criar uma estrutura reutilizável para consultar múltiplas tabelas do Supabase de forma fácil e consistente. Com parâmetros e funções, você pode:
+
+- ✅ Centralizar configurações (BaseUrl, ApiKey) em um único lugar
+- ✅ Criar uma função reutilizável para todas as consultas
+- ✅ Facilitar a manutenção (alterar uma vez, aplicar em todas as consultas)
+- ✅ Garantir consistência entre todas as consultas
+- ✅ Simplificar a criação de novas consultas (apenas chamar a função)
+
+#### Passo 1: Criar Parâmetro BaseUrl
+
+1. No Editor do Power Query, clique com o botão direito em **"Consultas"** (Queries) no painel esquerdo
+2. Selecione **"Novo parâmetro"** > **"Parâmetro"**
+3. Configure o parâmetro:
+   - **Nome:** `BaseUrl`
+   - **Tipo:** Texto
+   - **Valor atual:** `https://[seu-project-ref].supabase.co`
+   - Substitua `[seu-project-ref]` pelo identificador do seu projeto
+4. Clique em **"OK"**
+
+**Código M do parâmetro (gerado automaticamente):**
+```m
+"https://[seu-project-ref].supabase.co" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+```
+
+#### Passo 2: Criar Parâmetro ApiKeySupabase
+
+1. Crie outro parâmetro seguindo os mesmos passos
+2. Configure o parâmetro:
+   - **Nome:** `ApiKeySupabase`
+   - **Tipo:** Texto
+   - **Valor atual:** Sua API key (anon ou service_role)
+   - ⚠️ **Importante:** Mantenha a segurança - não compartilhe arquivos `.pbix` com API keys expostas
+3. Clique em **"OK"**
+
+**Código M do parâmetro (gerado automaticamente):**
+```m
+"[sua-api-key-aqui]" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+```
+
+#### Passo 3: Criar Função fx_consulta
+
+1. No Editor do Power Query, clique em **"Nova consulta"** > **"Consulta em branco"**
+2. Renomeie a consulta para `fx_consulta`
+3. Abra o **Editor Avançado** e cole o seguinte código:
+
+```m
+(
+    tabela as text,
+    optional schema as text
+) =>
+let  
+    // Determina o schema a usar (padrão: "public" se não especificado)
+    SchemaUsado = if schema = null then "public" else schema,
+    
+    // Caminho da tabela (sem schema no path quando usar header Accept-Profile)
+    RPath = "rest/v1/" & tabela, 
+    
+    PageSize = 1000, 
+
+    // --- FUNÇÃO QUE BUSCA UMA PÁGINA ---
+    GetPage = (offset as number) =>
+        let
+            // Monta os headers baseado no schema
+            HeadersBase = [
+                #"apikey" = ApiKeySupabase,
+                #"Authorization" = "Bearer " & ApiKeySupabase
+            ],
+            // Adiciona Accept-Profile apenas se schema não for "public"
+            HeadersFinal = if SchemaUsado = "public" 
+                then HeadersBase 
+                else HeadersBase & [#"Accept-Profile" = SchemaUsado],
+            
+            Response = Web.Contents(
+                BaseUrl,
+                [
+                    RelativePath = RPath,
+                    Headers = HeadersFinal,
+                    Query = [
+                        select = "*",
+                        limit = Text.From(PageSize),
+                        offset = Text.From(offset)
+                    ]
+                ]
+            ),
+            Json = Json.Document(Response)
+        in
+            Json,
+
+    // --- LOOP DE PAGINAÇÃO ---
+    Source = List.Generate(
+        () => [Offset = 0, Data = GetPage(0)],
+        each not List.IsEmpty([Data]),
+        each [
+            Offset = [Offset] + PageSize, 
+            Data = GetPage([Offset] + PageSize)
+        ],
+        each [Data]
+    ),
+
+    // --- TRATAMENTO E EXPANSÃO DOS DADOS ---
+    #"Tabela de Paginas" = Table.FromList(Source, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    #"Expandir Paginas" = Table.ExpandListColumn(#"Tabela de Paginas", "Column1"),
+    Colunas = if Table.IsEmpty(#"Expandir Paginas") then {} else Record.FieldNames(#"Expandir Paginas"{0}[Column1]),
+    #"Dados Finais" = Table.ExpandRecordColumn(#"Expandir Paginas", "Column1", Colunas)
+in
+    #"Dados Finais"
+```
+
+4. Clique em **"Concluído"** (Done)
+
+**Explicação da Função:**
+- **Parâmetro `tabela`:** Nome da tabela (obrigatório)
+- **Parâmetro `schema`:** Nome do schema (opcional, padrão: "public")
+- A função usa o header `Accept-Profile` quando o schema não é "public"
+- Implementa paginação automática
+- Retorna uma tabela com todos os dados
+
+**⚠️ IMPORTANTE sobre o Header Accept-Profile:**
+- Este header informa ao Supabase qual schema usar
+- Se você receber erro 406, verifique se o schema está em "Exposed Schemas" no Supabase
+- Para mais informações, consulte a seção **1.4.2 Expor Schema no Supabase**
+
+#### Passo 4: Criar Consultas de Tabelas Usando a Função
+
+Agora você pode criar consultas para cada tabela de forma muito simples:
+
+**Exemplo 1: Tabela no Schema `public` (padrão)**
+
+1. Crie uma nova consulta em branco
+2. Renomeie para o nome da tabela (ex: `fato_lancamentos`)
+3. No Editor Avançado, cole:
+
+```m
+let
+    Fonte = fx_consulta("fato_lancamentos")
+in
+    Fonte
+```
+
+Como o segundo parâmetro (schema) não foi especificado, a função usa "public" como padrão.
+
+**Exemplo 2: Tabela no Schema `dw`**
+
+```m
+let
+    Fonte = fx_consulta("dim_calendario", "dw")
+in
+    Fonte
+```
+
+**Exemplo 3: Tabela em Outro Schema**
+
+```m
+let
+    Fonte = fx_consulta("vendas", "analytics")
+in
+    Fonte
+```
+
+#### Vantagens desta Abordagem
+
+1. **Manutenção Simplificada:**
+   - Alterar BaseUrl ou ApiKey em um único lugar (parâmetros)
+   - Todas as consultas usam automaticamente os novos valores
+
+2. **Consistência:**
+   - Todas as consultas usam a mesma lógica de paginação
+   - Mesma configuração de headers e autenticação
+
+3. **Facilidade de Criação:**
+   - Criar nova consulta = apenas chamar `fx_consulta("nome_tabela")`
+   - Não precisa copiar e colar código completo toda vez
+
+4. **Flexibilidade:**
+   - Suporta diferentes schemas facilmente
+   - Pode ser estendida para adicionar filtros, ordenação, etc.
+
+#### Exemplo Completo: Múltiplas Tabelas
+
+Aqui está um exemplo de como criar múltiplas consultas rapidamente:
+
+**fato_lancamentos (schema public - padrão):**
+```m
+let
+    Fonte = fx_consulta("fato_lancamentos")
+in
+    Fonte
+```
+
+**contas (schema public - padrão):**
+```m
+let
+    Fonte = fx_consulta("contas")
+in
+    Fonte
+```
+
+**dim_calendario (schema dw):**
+```m
+let
+    Fonte = fx_consulta("dim_calendario", "dw")
+in
+    Fonte
+```
+
+**categorias_hierarquia (schema dw):**
+```m
+let
+    Fonte = fx_consulta("categorias_hierarquia", "dw")
+in
+    Fonte
+```
+
+#### Personalizando a Função (Opcional)
+
+Você pode estender a função para adicionar mais funcionalidades:
+
+**Versão com PageSize Configurável:**
+```m
+(
+    tabela as text,
+    optional schema as text,
+    optional pageSize as number
+) =>
+let  
+    SchemaUsado = if schema = null then "public" else schema,
+    PageSizeUsado = if pageSize = null then 1000 else pageSize,
+    RPath = "rest/v1/" & tabela, 
+    // ... resto do código usando PageSizeUsado
+```
+
+**Versão com Filtros:**
+```m
+(
+    tabela as text,
+    optional schema as text,
+    optional filtros as record
+) =>
+let  
+    SchemaUsado = if schema = null then "dw" else schema,
+    RPath = "rest/v1/" & tabela,
+    QueryBase = [
+        select = "*",
+        limit = Text.From(PageSize),
+        offset = Text.From(offset)
+    ],
+    QueryFinal = if filtros = null then QueryBase else QueryBase & filtros,
+    // ... resto do código usando QueryFinal
+```
+
+### Acessar Tabelas de Schemas Diferentes
+
+Se sua tabela está em um schema diferente do padrão `public` (como `dw`, `analytics`, `staging`, etc.), você precisa seguir dois passos críticos:
+
+**⚠️ PASSO 1 - EXPOR O SCHEMA NO SUPABASE (OBRIGATÓRIO):**
+
+Antes de qualquer coisa, você **DEVE** expor o schema no painel do Supabase:
+
+1. Acesse o **Dashboard do Supabase**
+2. Vá em **Settings** (⚙️) > **API**
+3. Role até a seção **"Exposed Schemas"** (Schemas Expostos)
+4. Adicione o schema à lista (ex: se só tem `public`, adicione `dw` - ficará `public, dw`)
+5. Clique em **Save** (Salvar)
+
+**Sem este passo, você receberá erros 404 ou 406!**
+
+Para instruções detalhadas, consulte a seção **1.4.2 Expor Schema no Supabase**.
+
+**⚠️ PASSO 2 - CONCEDER PERMISSÕES SQL (OBRIGATÓRIO):**
+
+Após expor o schema, você **DEVE** conceder permissões SQL para acessar as tabelas:
+
+1. Acesse o **SQL Editor** do Supabase
+2. Execute os comandos SQL para conceder permissões:
+   ```sql
+   GRANT USAGE ON SCHEMA dw TO anon, authenticated;
+   GRANT SELECT ON ALL TABLES IN SCHEMA dw TO anon, authenticated;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA dw 
+   GRANT SELECT ON TABLES TO anon, authenticated;
+   ```
+3. Substitua `dw` pelo nome do seu schema
+
+**Sem este passo, você receberá erros de acesso mesmo após expor o schema!**
+
+Para instruções detalhadas e opções de permissões, consulte a seção **1.4.3 Conceder Permissões SQL ao Schema**.
+
+**PASSO 3 - CONFIGURAR O CÓDIGO M:**
+
+Após expor o schema, você precisa incluir o schema no código M usando uma das abordagens abaixo.
+
+#### Abordagem 1: Incluir Schema no RPath (Recomendado)
+
+Esta é a forma mais simples e direta. Basta incluir o schema no formato `[schema].[tabela]` no `RPath`:
+
+**Exemplo para `dw.dim_calendario`:**
+
+```m
+let
+    // --- 1. CONFIGURAÇÕES INICIAIS ---
+    BaseUrl = "https://seuprojeto.supabase.co", 
+    
+    // Para tabelas em schema diferente de 'public', inclua o schema no formato schema.tabela
+    RPath = "rest/v1/dw.dim_calendario",  // Schema: dw, Tabela: dim_calendario
+    
+    ApiKey = "sua_chave_aqui", 
+    PageSize = 1000, 
+
+    // --- 2. FUNÇÃO QUE BUSCA UMA PÁGINA ---
+    GetPage = (offset as number) =>
+        let
+            Response = Web.Contents(
+                BaseUrl,
+                [
+                    RelativePath = RPath,
+                    Headers = [
+                        #"apikey" = ApiKey,
+                        #"Authorization" = "Bearer " & ApiKey
+                    ],
+                    Query = [
+                        select = "*",
+                        limit = Text.From(PageSize),
+                        offset = Text.From(offset)
+                    ]
+                ]
+            ),
+            Json = Json.Document(Response)
+        in
+            Json,
+
+    // --- 3. LOOP DE PAGINAÇÃO ---
+    Source = List.Generate(
+        () => [Offset = 0, Data = GetPage(0)],
+        each not List.IsEmpty([Data]),
+        each [
+            Offset = [Offset] + PageSize, 
+            Data = GetPage([Offset] + PageSize)
+        ],
+        each [Data]
+    ),
+
+    // --- 4. TRATAMENTO E EXPANSÃO DOS DADOS ---
+    #"Tabela de Paginas" = Table.FromList(Source, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    #"Expandir Paginas" = Table.ExpandListColumn(#"Tabela de Paginas", "Column1"),
+    Colunas = if Table.IsEmpty(#"Expandir Paginas") then {} else Record.FieldNames(#"Expandir Paginas"{0}[Column1]),
+    #"Dados Finais" = Table.ExpandRecordColumn(#"Expandir Paginas", "Column1", Colunas)
+in
+    #"Dados Finais"
+```
+
+**Pontos Importantes:**
+- O formato é `rest/v1/[schema].[tabela]` (com ponto entre schema e tabela)
+- Não use espaços ou caracteres especiais
+- O schema e a tabela são case-sensitive (respeitam maiúsculas/minúsculas)
+- Exemplos válidos:
+  - `rest/v1/dw.dim_calendario`
+  - `rest/v1/analytics.vendas`
+  - `rest/v1/staging.temp_data`
+
+#### Abordagem 2: Usar Header Accept-Profile (Alternativa)
+
+Uma alternativa é usar o header `Accept-Profile` para especificar o schema. Esta abordagem funciona bem após expor o schema no Supabase.
+
+**⚠️ IMPORTANTE:** Esta abordagem só funciona se você já expôs o schema no Supabase (Passo 1 acima).
+
+**Exemplo completo usando header:**
+
+```m
+let
+    BaseUrl = "https://seuprojeto.supabase.co", 
+    RPath = "rest/v1/dim_calendario",  // SEM o schema no path
+    ApiKey = "sua_chave_aqui", 
+    PageSize = 1000, 
+
+    GetPage = (offset as number) =>
+        let
+            Response = Web.Contents(
+                BaseUrl,
+                [
+                    RelativePath = RPath,
+                    Headers = [
+                        #"apikey" = ApiKey,
+                        #"Authorization" = "Bearer " & ApiKey,
+                        #"Accept-Profile" = "dw"  // Schema especificado via header
+                    ],
+                    Query = [
+                        select = "*",
+                        limit = Text.From(PageSize),
+                        offset = Text.From(offset)
+                    ]
+                ]
+            ),
+            Json = Json.Document(Response)
+        in
+            Json,
+
+    Source = List.Generate(
+        () => [Offset = 0, Data = GetPage(0)],
+        each not List.IsEmpty([Data]),
+        each [
+            Offset = [Offset] + PageSize, 
+            Data = GetPage([Offset] + PageSize)
+        ],
+        each [Data]
+    ),
+
+    #"Tabela de Paginas" = Table.FromList(Source, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+    #"Expandir Paginas" = Table.ExpandListColumn(#"Tabela de Paginas", "Column1"),
+    Colunas = if Table.IsEmpty(#"Expandir Paginas") then {} else Record.FieldNames(#"Expandir Paginas"{0}[Column1]),
+    #"Dados Finais" = Table.ExpandRecordColumn(#"Expandir Paginas", "Column1", Colunas)
+in
+    #"Dados Finais"
+```
+
+**Pontos Importantes:**
+- O `RPath` contém apenas o nome da tabela (sem schema)
+- O schema é especificado via header `Accept-Profile`
+- Esta abordagem funciona bem após expor o schema no Supabase
+- Se receber erro 406, verifique se o schema foi exposto corretamente
+
+#### Troubleshooting para Schemas
+
+**Erro: "404 Not Found" ao acessar tabela:**
+- Verifique se o schema está correto no `RPath`
+- Certifique-se de que o formato está correto: `rest/v1/[schema].[tabela]`
+- Verifique se o schema e a tabela existem no Supabase
+
+**Erro: "Tabela não encontrada" mesmo com schema correto:**
+- Verifique as permissões RLS (Row Level Security) para o schema
+- Se usar `anon` key, certifique-se de que as políticas RLS permitem acesso ao schema
+- Considere usar `service_role` key temporariamente para testar (não recomendado para produção)
+
+**Dados não aparecem:**
+- Verifique se a tabela tem dados no schema especificado
+- Teste a URL manualmente no navegador:
+  ```
+  https://[seu-projeto].supabase.co/rest/v1/[schema].[tabela]?apikey=[sua-key]
+  ```
 
 ## 📚 Referências
 
