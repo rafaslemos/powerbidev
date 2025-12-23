@@ -13,16 +13,21 @@ powerbidev/
 ├── README.md                    # Este arquivo
 └── docs/                        # Documentação e guias
     └── conexoes/                # Guias de conexão com diferentes serviços
-        └── PowerBI_Supabase.md  # Guia de conexão Supabase
+        ├── PowerBI_Supabase.md      # Guia de conexão Supabase (PostgreSQL)
+        └── PowerBI_Supabase_API.md  # Guia de conexão Supabase (REST API)
 ```
 
 ## 🚀 Soluções Disponíveis
 
 ### Conexões
 
-#### 1. Conectar Supabase ao Power BI
+#### 1. Conectar Supabase ao Power BI (PostgreSQL)
 - **Arquivo:** [`docs/conexoes/PowerBI_Supabase.md`](docs/conexoes/PowerBI_Supabase.md)
 - **Descrição:** Guia completo passo a passo para conectar o Supabase PostgreSQL ao Power BI Desktop, incluindo resolução de erros comuns como certificado SSL.
+
+#### 2. Conectar Supabase ao Power BI (REST API)
+- **Arquivo:** [`docs/conexoes/PowerBI_Supabase_API.md`](docs/conexoes/PowerBI_Supabase_API.md)
+- **Descrição:** Guia completo passo a passo para conectar o Supabase ao Power BI Desktop usando a API REST, incluindo paginação automática e código M (Power Query) pronto para uso.
 
 ## 📖 Como Usar Este Repositório
 
